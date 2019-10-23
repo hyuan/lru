@@ -18,6 +18,8 @@ class LRUCache:
 
     Actual storage of the data depends on the storage object
     attached, and defaults to in-memory (MemoryStorage)
+
+    Note: It's up to the storage class to enforce item expiring.
     '''
 
     def __init__(self, storage=None, max_size=None, sizeof=None, max_age=None):
@@ -36,6 +38,18 @@ class LRUCache:
 
     def __setitem__(self, key, data):
         '''Add item to the cache'''
+        self.put(key, data)
+
+
+    def put(self, key, data, expires_in=None):
+        '''
+        Add an object to the cache
+
+        :param key: Key to use to retrieve this item.
+        :param data: The actual item to cache.
+        :param expires_in: timedelta to specify when object should expire
+        :return:
+        '''
 
         # Determine size of data
         if self.__sizeof is not None:
@@ -46,34 +60,33 @@ class LRUCache:
         else:
             size = sys.getsizeof(data)
 
+        # Time to expire
+        if expires_in is not None:
+            expire_after = datetime.now() + expires_in
+        else:
+            expire_after = datetime.now() + self.max_age
+
+        # Manipulate storage
         with self.__lock:
-
-            self.storage.remove_items_older_than(datetime.now() - self.max_age)
-
-            # Remove item if already in cache
-            if self.storage.has(key):
-                self.storage.remove(key)
 
             # Sanity check: Data too big for storage
             if self.max_size is not None and size > self.max_size:
                 return
 
             # Make sure there is space
-            if self.max_size > 0:
-                while self.storage.total_size_stored + size >= self.max_size:
-                    self.storage.remove(self.storage.next_to_remove())
+            self.storage.make_room_for(size, self.max_size)
 
             # Save item
             self.storage.add(
                 key = key,
                 data = data,
-                size = size)
+                size = size,
+                expire_after = expire_after)
 
 
     def __getitem__(self, key):
         '''Get data from cache'''
         with self.__lock:
-            self.storage.remove_items_older_than(datetime.now() - self.max_age)
             try:
                 data = self.storage.get(key)
                 self.storage.touch_last_used(key)

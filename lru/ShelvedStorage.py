@@ -1,5 +1,6 @@
 import shelve
-#from datetime import datetime
+import heapq
+from datetime import datetime
 
 from .CacheStorage import CacheStorage
 
@@ -19,6 +20,7 @@ class ShelvedStorage(CacheStorage):
         self.__item_shelf = shelve.open(path)
 
         self.__key_priority = list() # (end of list is most recent used key)
+        self.__expire_queue = list() # Index of when items expire
         self.__total_size = 0
 
         self._read_existing_shelf_entries()
@@ -36,6 +38,7 @@ class ShelvedStorage(CacheStorage):
             self.__total_size += self.__item_shelf['size']
 
         self.__key_priority = [key for (ts, key) in sorted(last_used.items(), key=lambda t: t[0])]
+        self.__expire_queue = heapq.heapify([(item['expires'], key) for (key, item) in self.__item_shelf.items()])
 
 
     def total_size_stored(self):
@@ -53,7 +56,7 @@ class ShelvedStorage(CacheStorage):
         return key in self.__item_shelf
 
 
-    def add(self, key, data, last_used=None, size=0):
+    def add(self, key, data, last_used=None, size=0, expire_after=None):
         '''
         Add an item to the storage and update LRU tracking
 
@@ -61,15 +64,24 @@ class ShelvedStorage(CacheStorage):
         :param data: Data to be stored
         :param last_used: Timestamp entriy was last used (default now)
         :param size: Size of the data item
+        :param expire_after: When to expire this data (datetime)
         '''
+
+        # Remove item if already in cache
+        if self.has(key):
+            self.remove(key)
+
         self.__item_shelf[key] = {
             'data': data,
             'last_used': last_used,
             'size': size,
+            'expires': expire_after,
         }
 
         self.__key_priority.append(size)
         self.__total_size += size
+        if expire_after is not None:
+            heapq.heappush(self.__expire_queue, (expire_after, key))
 
 
     def remove(self, key):
@@ -89,3 +101,25 @@ class ShelvedStorage(CacheStorage):
         '''Select next key to remove (least recently used)'''
         if len(self.__key_priority) > 0:
             return self.__key_priority[0]
+
+
+    def make_room_for(self, size, max_size):
+        '''
+        Make room for a new item of the given size
+
+        Note: Possible race condition if storage supports multiple LRUCache objects
+              in separate processes and called concurrently.  Solve this in storage
+              engine implementation if needed.
+
+        :param size: Size of the new object coming in
+        :param max_size: Size limit for the cache storage
+        '''
+        now = datetime.now()
+        try:
+            while self.__expire_queue[0][0] <= now:
+                key = heapq.heappop()[1]
+                if key in self:
+                    self.remove(key)
+        except IndexError:
+            # Queue probably empty
+            return
