@@ -1,3 +1,5 @@
+import sys
+
 from datetime import datetime
 from threading import RLock
 
@@ -42,7 +44,7 @@ class LRUCache:
             except AttributeError:
                 size = 0
         else:
-            size = 0
+            size = sys.getsizeof(data)
 
         with self.__lock:
 
