@@ -67,7 +67,7 @@ class LRUCache:
             expire_after = datetime.now() + self.max_age
 
         # Manipulate storage
-        with self.__lock:
+        with self.lock:
 
             # Sanity check: Data too big for storage
             if self.max_size is not None and size > self.max_size:
@@ -86,7 +86,7 @@ class LRUCache:
 
     def __getitem__(self, key):
         '''Get data from cache'''
-        with self.__lock:
+        with self.lock:
             try:
                 data = self.storage.get(key)
                 self.storage.touch_last_used(key)
@@ -96,6 +96,6 @@ class LRUCache:
 
 
     def __contains__(self, key):
-        with self.__lock:
-            return self.has(key)
+        with self.lock:
+            return self.storage.has(key)
 

@@ -30,7 +30,15 @@ class MemoryStorage(CacheStorage):
         self.__total_size = 0
         self.__oldest_lru = None
 
-    
+    @property
+    def total_size_stored(self):
+        return self.__total_size
+
+    @property
+    def count_items(self):
+        return len(self.__items)
+
+
     def has(self, key):
         '''Check to see if key is in storage'''
         return key in self.__items
@@ -137,3 +145,5 @@ class MemoryStorage(CacheStorage):
         except IndexError:
             # Queue probably empty
             return
+
+
