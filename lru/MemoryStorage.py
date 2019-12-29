@@ -93,7 +93,7 @@ class MemoryStorage(CacheStorage):
         item = self.__items[key]
         if item.expire_after > datetime.now():
             self.touch_last_used(key)
-            return item.value
+            return item.data
         else:
             raise KeyError("%s has expired" % (key))
         
