@@ -87,3 +87,6 @@ class CacheStorage(ABC):
         '''Select next key to remove (least recently used)'''
 
 
+    @abstractmethod
+    def close(self):
+        '''Close storage and sync to disk'''

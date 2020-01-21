@@ -147,3 +147,5 @@ class MemoryStorage(CacheStorage):
             return
 
 
+    def close(self):
+        pass

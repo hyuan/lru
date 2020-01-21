@@ -123,3 +123,7 @@ class ShelvedStorage(CacheStorage):
         except IndexError:
             # Queue probably empty
             return
+
+
+    def close(self):
+        self.__item_shelf.close()

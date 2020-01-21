@@ -99,3 +99,8 @@ class LRUCache:
         with self.lock:
             return self.storage.has(key)
 
+
+    def close(self):
+        self.storage.close()
+        self.storage = None
+
