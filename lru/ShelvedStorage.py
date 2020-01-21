@@ -20,7 +20,7 @@ class ShelvedStorage(CacheStorage):
         self.__item_shelf = shelve.open(path)
 
         self.__key_priority = list() # (end of list is most recent used key)
-        self.__expire_queue = list() # Index of when items expire
+        self.__expire_index = list() # Index of when items expire
         self.__total_size = 0
 
         self._read_existing_shelf_entries()
@@ -38,7 +38,7 @@ class ShelvedStorage(CacheStorage):
             self.__total_size += self.__item_shelf['size']
 
         self.__key_priority = [key for (ts, key) in sorted(last_used.items(), key=lambda t: t[0])]
-        self.__expire_queue = heapq.heapify([(item['expires'], key) for (key, item) in self.__item_shelf.items()])
+        self.__expire_index = heapq.heapify([(item['expires'], key) for (key, item) in self.__item_shelf.items()])
 
 
     def total_size_stored(self):
@@ -78,10 +78,62 @@ class ShelvedStorage(CacheStorage):
             'expires': expire_after,
         }
 
-        self.__key_priority.append(size)
+        self.__key_priority.append(key)
         self.__total_size += size
         if expire_after is not None:
-            heapq.heappush(self.__expire_queue, (expire_after, key))
+            heapq.heappush(self.__expire_index, (expire_after, key))
+
+        # Check for expired items
+        now = datetime.now()
+        while len(self.__expire_index) > 0 and self.__expire_index[0][0] < now:
+            expired_at, key = heapq.heappop(self.__expire_index)
+            if key in self.__item_shelf:
+                if expired_at < now: # Redundant, but feels good
+                    self._remove_expired(key)
+
+    def get(self, key):
+        '''
+        Get data by key
+
+        Note: check to make sure item isn't expired
+
+        :param key: Key identifying
+        :return: Data that was cached
+        :raises KeyError: If key not in collection
+        '''
+
+        # Get item
+        try:
+            item = self.__item_shelf[key]
+        except KeyError:
+            raise KeyError()
+
+        # Check if expired
+        if item['expires'] is not None and item['expires'] < datetime.now():
+            self._remove_expired(key)
+            raise KeyError("Item %s has expired" % (key))
+
+        # Mark item as last used
+        self.__key_priority.remove(key)
+        self.__key_priority.append(key)
+
+        return item
+
+
+    def _remove_expired(self, key):
+        '''Remove and expired item'''
+
+        # Get item
+        try:
+            item = self.__item_shelf[key]
+        except KeyError:
+            return
+
+        # Remove item
+        del self.__item_shelf[key]
+        self.__key_priority.remove(key)
+        self.__total_size = max(0, self.__total_size-item['size'])
+        # self.__expire_index is cleaned up in add()
 
 
     def remove(self, key):
@@ -116,7 +168,7 @@ class ShelvedStorage(CacheStorage):
         '''
         now = datetime.now()
         try:
-            while self.__expire_queue[0][0] <= now:
+            while self.__expire_index[0][0] <= now:
                 key = heapq.heappop()[1]
                 if key in self:
                     self.remove(key)
