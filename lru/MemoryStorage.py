@@ -23,7 +23,8 @@ class CachedDataItem:
 class MemoryStorage(CacheStorage):
     '''Stores cached data in-memory'''
 
-    def __init__(self):
+    def __init__(self, evicted_callback=None):
+        super().__init__(evicted_callback=evicted_callback)
         self.__items = dict()
         self.__key_priority = list() # (end of list is most recent used key)
         self.__expire_queue = list() # Index of when items expire
@@ -102,6 +103,7 @@ class MemoryStorage(CacheStorage):
         '''Remove a cached item from by it's key'''
         
         if key in self.__items:
+            self.notify_evicted(key)
             self.__total_size -= self.__items[key].size
             del self.__items[key]
             self.__key_priority.remove(key)
@@ -136,6 +138,13 @@ class MemoryStorage(CacheStorage):
         :param size: Size of the new object coming in
         :param max_size: Size limit for the cache storage
         '''
+
+        while len(self.__key_priority) > 0 and self.__total_size + size > max_size:
+            self.remove(self.next_to_remove())
+
+
+    def remove_expired(self):
+        '''Remove any expired keys'''
         now = datetime.now()
         try:
             while self.__expire_queue[0][0] <= now:

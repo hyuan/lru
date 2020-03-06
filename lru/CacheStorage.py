@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import weakref
 
 class CacheStorage(ABC):
     '''
@@ -9,7 +10,18 @@ class CacheStorage(ABC):
 
     Note: It's up to the storage implementation to make sure expired items
     are removed.
+
+    evicted_callback is a way to be notified whenever an entry is removed
+    from the cache.  The item will remain in the cache until the callback
+    returns and then be deleted.
     '''
+
+    def __init__(self, evicted_callback=None):
+
+        self.__evicted_callback = None
+        if evicted_callback:
+            self.__evicted_callback = weakref.ref(evicted_callback)
+
 
     @property
     @abstractmethod
@@ -90,3 +102,18 @@ class CacheStorage(ABC):
     @abstractmethod
     def close(self):
         '''Close storage and sync to disk'''
+
+
+    @abstractmethod
+    def remove_expired(self):
+        '''Remove any expired entries'''
+
+
+    def notify_evicted(self, key):
+        '''Called to let other processes know an entry was evicted'''
+        if self.__evicted_callback is not None:
+            callback = self.__evicted_callback()
+            if callback is not None:
+                callback(key)
+
+

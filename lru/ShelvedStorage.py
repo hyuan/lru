@@ -12,10 +12,12 @@ class ShelvedStorage(CacheStorage):
     '''Storage which saves entries to disk using shelve'''
 
 
-    def __init__(self, path):
+    def __init__(self, path, evicted_callback=None):
         '''
         :param path: Path to save shelf to
+        :param evicted_callback:
         '''
+        super().__init__(evicted_callback=evicted_callback)
         self.__path = path
         self.__item_shelf = shelve.open(path)
 
@@ -84,12 +86,8 @@ class ShelvedStorage(CacheStorage):
             heapq.heappush(self.__expire_index, (expire_after, key))
 
         # Check for expired items
-        now = datetime.now()
-        while len(self.__expire_index) > 0 and self.__expire_index[0][0] < now:
-            expired_at, key = heapq.heappop(self.__expire_index)
-            if key in self.__item_shelf:
-                if expired_at < now: # Redundant, but feels good
-                    self._remove_expired(key)
+        self.remove_expired()
+
 
     def get(self, key):
         '''
@@ -110,7 +108,7 @@ class ShelvedStorage(CacheStorage):
 
         # Check if expired
         if item['expires'] is not None and item['expires'] < datetime.now():
-            self._remove_expired(key)
+            self._remove_expired_key(key)
             raise KeyError("Item %s has expired" % (key))
 
         # Mark item as last used
@@ -120,7 +118,17 @@ class ShelvedStorage(CacheStorage):
         return item
 
 
-    def _remove_expired(self, key):
+    def remove_expired(self):
+        '''Remove all expired times'''
+        now = datetime.now()
+        while len(self.__expire_index) > 0 and self.__expire_index[0][0] < now:
+            expired_at, key = heapq.heappop(self.__expire_index)
+            if key in self.__item_shelf:
+                if expired_at < now: # Redundant, but feels good
+                    self._remove_expired_key(key)
+
+
+    def _remove_expired_key(self, key):
         '''Remove and expired item'''
 
         # Get item
@@ -128,6 +136,8 @@ class ShelvedStorage(CacheStorage):
             item = self.__item_shelf[key]
         except KeyError:
             return
+
+        self.notify_evicted(key)
 
         # Remove item
         del self.__item_shelf[key]
@@ -139,6 +149,7 @@ class ShelvedStorage(CacheStorage):
     def remove(self, key):
         '''Remove a cached item from by it's key'''
         if self.has(key):
+            self.notify_evicted(key)
             self.__total_size -= self.__item_shelf[key].size
             del self.__item_shelf[key]
 
