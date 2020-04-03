@@ -92,8 +92,7 @@ class MemoryStorage(CacheStorage):
         :raises KeyError: If key not in collection
         '''
         item = self.__items[key]
-        if item.expire_after > datetime.now():
-            self.touch_last_used(key)
+        if item.expire_after is None or item.expire_after > datetime.now():
             return item.data
         else:
             raise KeyError("%s has expired" % (key))
@@ -118,7 +117,7 @@ class MemoryStorage(CacheStorage):
         self.__key_priority.append(key)
 
         oldest_key = self.__key_priority[-1]
-        self.__oldest_lru = self.__items[key].last_used
+        self.__oldest_lru = self.__items[oldest_key].last_used
 
 
     def next_to_remove(self):

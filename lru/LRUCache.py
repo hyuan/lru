@@ -65,8 +65,10 @@ class LRUCache:
         # Time to expire
         if expires_in is not None:
             expire_after = datetime.now() + expires_in
-        else:
+        elif self.max_age is not None:
             expire_after = datetime.now() + self.max_age
+        else:
+            expire_after = None
 
         # Manipulate storage
         with self.lock:
