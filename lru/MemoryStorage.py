@@ -98,7 +98,5 @@ class MemoryStorage(CacheStorage):
         return key, item
 
 
-
-
     def close(self):
         pass

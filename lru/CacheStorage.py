@@ -14,6 +14,15 @@ class CachedItem:
         self.size = size
 
 
+    def copy(self):
+        return CachedItem(
+            data = self.data,
+            expires = self.expires_at,
+            size = self.size,
+        )
+
+
+
 class CacheStorage(ABC):
     '''
     Interface for storing and retrieving data for LRUCache

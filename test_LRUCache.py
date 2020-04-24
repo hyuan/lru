@@ -15,12 +15,15 @@ UNITTEST_TMP_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), '.un
 class TestLRUCache(TestCase):
 
 
-    def _build_storages(self):
+    def _build_storages(self, only_disk_storages=False):
 
-        yield 'memory', MemoryStorage()
+        if not only_disk_storages:
+            yield 'memory', MemoryStorage()
 
-        # path = mktemp(dir=UNITTEST_TMP_DIR)
-        # yield 'shelved', ShelvedStorage(path=path)
+        path = mktemp(dir=UNITTEST_TMP_DIR)
+        storage = ShelvedStorage(path=path)
+        yield 'shelved', storage
+        storage.close()
 
         # path = mktemp(dir=UNITTEST_TMP_DIR)
         # yield 'sqlite3', Sqlite3Storage(path=path)
@@ -29,10 +32,15 @@ class TestLRUCache(TestCase):
     def _build_lru_configurations(self, storages=None, sizeof=None):
 
         for storage_name, storage in storages or self._build_storages():
-
             yield storage_name + ' noopts', LRUCache(storage=storage, max_size=None, max_age=None, sizeof=sizeof)
+
+        for storage_name, storage in storages or self._build_storages():
             yield storage_name + ' w/maxsize', LRUCache(storage=storage, max_size=1024, max_age=None, sizeof=sizeof)
+
+        for storage_name, storage in storages or self._build_storages():
             yield storage_name + ' w/maxage', LRUCache(storage=storage, max_size=None, max_age=timedelta(days=1), sizeof=sizeof)
+
+        for storage_name, storage in storages or self._build_storages():
             yield storage_name + ' w/maxsize&age', LRUCache(storage=storage, max_size=1024, max_age=timedelta(days=1), sizeof=sizeof)
 
 
@@ -48,8 +56,6 @@ class TestLRUCache(TestCase):
 
 
 
-
-
     def test_put_and_get(self):
         '''Test that we can put and then get a value'''
 
@@ -62,7 +68,6 @@ class TestLRUCache(TestCase):
                 self.assertEqual(cache['def'], {'my_data': 'b'})
                 self.assertEqual(cache['xyz'], {'my_data': 'c'})
                 self.assertEqual(cache.get('xyz'), {'my_data': 'c'})
-                cache.close()
 
 
     def test_cache_miss(self):
@@ -188,28 +193,52 @@ class TestLRUCache(TestCase):
                 self.assertEqual(cache.total_size_stored, 0)
 
 
+    def test_removed_not_in(self):
+        for scenario, cache in self._build_lru_configurations():
+            with self.subTest(scenario=scenario):
+                cache['abc'] = {'my_data': 'a'}
+                del cache['abc']
+                cache['def'] = {'my_data': 'b'}
+                with self.assertRaises(NoItemCached):
+                    cache['abc']
+                self.assertEqual(cache['def'], {'my_data': 'b'})
 
-    # def test_removed_keyerror(self):
-    #     for scenario, cache in self._build_lru_configurations():
-    #         with self.subTest(scenario=scenario):
-    #             cache['abc'] = {'my_data': 'a'}
-    #             del cache['abc']
-    #             with self.assertRaises(KeyError):
-    #                 cache['abc']
-    #
-    # def test_removed_not_has(self):
-    #     for scenario, cache in self._build_lru_configurations():
-    #         with self.subTest(scenario=scenario):
-    #             cache['abc'] = {'my_data': 'a'}
-    #             del cache['abc']
-    #             self.assertFalse(cache.has('abc'))
-    #
-    # def test_removed_not_in(self):
-    #     for scenario, cache in self._build_lru_configurations():
-    #         with self.subTest(scenario=scenario):
-    #             cache['abc'] = {'my_data': 'a'}
-    #             del cache['abc']
-    #             self.assertFalse('abc' not in cache)
+
+    DISK_STORAGES = (ShelvedStorage, )
+
+    def test_can_reopen(self):
+        for storage_class in self.DISK_STORAGES:
+            with self.subTest(scenario=storage_class.__name__):
+                path = mktemp(dir=UNITTEST_TMP_DIR)
+
+                cache = LRUCache(storage=storage_class(path=path))
+                cache['abc'] = {'my_data': 'a'}
+                cache.close()
+
+                cache = LRUCache(storage=storage_class(path=path))
+                self.assertEqual(cache['abc'], {'my_data': 'a'})
+                cache.close()
+
+
+    def test_reopen_preserves_lru(self):
+        for storage_class in self.DISK_STORAGES:
+            with self.subTest(scenario=storage_class.__name__):
+                path = mktemp(dir=UNITTEST_TMP_DIR)
+
+                cache = LRUCache(storage=storage_class(path=path), max_size=2, sizeof=lambda i: 1)
+                cache['abc'] = {'my_data': 'a'}
+                cache['def'] = {'my_data': 'b'}
+                cache.close()
+
+                cache = LRUCache(storage=storage_class(path=path), max_size=2, sizeof=lambda i: 1)
+                cache['ghi'] = {'my_data': 'c'}
+                with self.assertRaises(NoItemCached):
+                    cache['abc']
+                self.assertEqual(cache.total_size_stored, 2)
+                self.assertEqual(cache['def'], {'my_data': 'b'})
+                self.assertEqual(cache['ghi'], {'my_data': 'c'})
+                cache.close()
+
 
 
 if __name__ == '__main__':
