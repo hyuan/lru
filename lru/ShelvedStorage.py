@@ -40,7 +40,7 @@ class ShelvedStorage(CacheStorage):
             self.__total_size += self.__item_shelf['size']
 
         self.__key_priority = [key for (ts, key) in sorted(last_used.items(), key=lambda t: t[0])]
-        self.__expire_index = heapq.heapify([(item['expires'], key) for (key, item) in self.__item_shelf.items()])
+        self.__expire_index = heapq.heapify([(item['expires'], key) for (key, item) in self.__item_shelf.items()]) or list()
 
 
     def total_size_stored(self):
@@ -51,6 +51,17 @@ class ShelvedStorage(CacheStorage):
     def count_items(self):
         '''Total size of cached data'''
         return len(self.__item_shelf)
+
+
+    def keys(self):
+        '''All cache keys'''
+        return self.__item_shelf.keys()
+
+
+    def items(self):
+        '''All cache keys and items'''
+        for key in self.keys():
+            yield key, self[key]
 
 
     def has(self, key):
@@ -115,7 +126,7 @@ class ShelvedStorage(CacheStorage):
         self.__key_priority.remove(key)
         self.__key_priority.append(key)
 
-        return item
+        return item['data']
 
 
     def remove_expired(self):

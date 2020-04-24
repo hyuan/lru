@@ -1,14 +1,51 @@
 
 import json
 from datetime import datetime
+from tempfile import TemporaryFile
 from textwrap import dedent
 from contextlib import closing
 import sqlite3
+import logging
 
 from .CacheStorage import CacheStorage
 
 
+
 # TODO: Need to add __oldest_lru as in MemoryStorage, implement remaining methods, and test
+
+
+class LargeKeyList:
+    '''Can hold a large number of keys'''
+    LIMIT = 10000
+    def __init__(self, first_items=None):
+        self.__tf = None
+        self.__items = list()  # Store here unless we get too many
+        if first_items:
+            for item in first_items:
+                self.append(item)
+    def append(self, key):
+        if self.__tf is None:
+            self.__items.append(key)
+            if len(self.__items) > self.LIMIT:
+                self.move_to_disk()
+        else:
+            self.__tf.write(key + "\n")
+    def move_to_disk(self):
+        self.__tf = TemporaryFile(mode='r+t')
+        self.__tf.write("\n".join(self.__items)+"\n")
+        self.__items = None
+    def all(self):
+        if self.__tf is None:
+            for item in self.__items:
+                yield item
+        else:
+            self.__tf.seek(0)
+            while True:
+                yield self.__tf.readline()[:-1]
+    def __iter__(self):
+        return self.all()
+
+
 
 
 class Sqlite3Storage(CacheStorage):
@@ -22,7 +59,9 @@ class Sqlite3Storage(CacheStorage):
         '''
         super().__init__(evicted_callback=evicted_callback)
         self.__path = path
+        self.log = logging.getLogger('Sqlite3Storage')
         self.__db = sqlite3.connect(self.__path)
+
         self.__size_cache = None
         self.__cnt_cache = None
 
@@ -77,10 +116,32 @@ class Sqlite3Storage(CacheStorage):
     def has(self, key):
         '''Check to see if key is in storage'''
         with closing(self.__db.cursor()) as curs:
+            sql = "SELECT cache_key FROM cache_entries WHERE cache_key = ? and (expires IS NULL or expires > ?)"
+            for row in curs.execute(sql, (key, datetime.now())):
+                return True
+            return False
+
+
+    def _key_exists(self, key):
+        '''Check to see if key exists (even if expired)'''
+        with closing(self.__db.cursor()) as curs:
             sql = "SELECT cache_key FROM cache_entries WHERE cache_key = ?"
             for row in curs.execute(sql, (key, )):
                 return True
             return False
+
+
+    def keys(self):
+        '''All cache keys'''
+        with closing(self.__db.cursor()) as curs:
+            sql = "SELECT cache_key FROM cache_entries WHERE expires IS NULL or expires > ?"
+            return LargeKeyList([row.cache_key for row in curs.execute(sql, (datetime.now(), ))])
+
+
+    def items(self):
+        '''All cache keys and items'''
+        for cache_key in self.keys():
+            yield cache_key, self.get(cache_key)
 
 
     def add(self, key, data, last_used=None, size=0, expire_after=None):
@@ -93,7 +154,6 @@ class Sqlite3Storage(CacheStorage):
         :param size: Size of the data item
         :param expire_after: When to expire this data (datetime)
         '''
-
         with closing(self.__db.cursor()) as curs:
 
             # Remove item if already in cache
@@ -133,6 +193,34 @@ class Sqlite3Storage(CacheStorage):
             self.__db.commit()
 
 
+    def _get_data(self, key):
+        '''
+        Get data by key
+
+        :param key: Key identifying
+        :return: Data that was cached
+        :raises KeyError: If key not in collection
+        '''
+        with closing(self.__db.cursor()) as curs:
+
+            data = None
+
+            # Get entry
+            sql = "SELECT entry FROM cache_entries WHERE cache_key = ?"
+            for row in curs.execute(sql, (key, )):
+                data = row[0]
+
+            # Decode data
+            if data:
+                try:
+                    return  json.loads(data)
+                except Exception as e:
+                    raise KeyError("Couldn't decode cache entry for %s: %s: %s" % (
+                        key, e.__class__.__name__, str(e)))
+
+            raise KeyError("No cached entry for " + str(key))
+
+
     def get(self, key):
         '''
         Get data by key
@@ -143,7 +231,6 @@ class Sqlite3Storage(CacheStorage):
         :return: Data that was cached
         :raises KeyError: If key not in collection
         '''
-
         with closing(self.__db.cursor()) as curs:
 
             data = None
@@ -165,19 +252,18 @@ class Sqlite3Storage(CacheStorage):
             raise KeyError("No cached entry for " + str(key))
 
 
-
     def remove_expired(self):
         '''Remove all expired items'''
 
         with closing(self.__db.cursor()) as curs:
 
             now = datetime.now().strftime(self.TS_FORMAT)
-            sql = "DELETE FROM cache_entries WHERE expires IS NOT NULL and expires < ?)"
-            curs.execute(sql, (now, ))
+            sql = "SELECT cache_key FROM cache_entries WHERE expires IS NOT NULL and expires < ?"
 
-            self.__cnt_cache, self.__size_cache = self._get_cnt_and_size_from_db()
+            remove_keys = LargeKeyList([row[0] for row in curs.execute(sql, (now, ))])
 
-            self.__db.commit()
+        for key in remove_keys:
+            self.remove(key)
 
 
     def _get_entry_size(self, key):
@@ -190,8 +276,9 @@ class Sqlite3Storage(CacheStorage):
 
     def remove(self, key):
         '''Remove a cached item from by it's key'''
+        if self._key_exists(key):
 
-        if self.has(key):
+            self.notify_evicted(key, )
 
             entry_size = self._get_entry_size(key)
             if entry_size is not None:
@@ -233,7 +320,7 @@ class Sqlite3Storage(CacheStorage):
         :param size: Size of the new object coming in
         :param max_size: Size limit for the cache storage
         '''
-
+        self.remove_expired()
         while self.__size_cache + size > max_size and self.__size_cache > 0:
 
             with closing(self.__db.cursor()) as curs:
@@ -267,4 +354,7 @@ class Sqlite3Storage(CacheStorage):
 
 
     def close(self):
+        if self.__db is None:
+            return
         self.__db.close()
+        self.__db = None

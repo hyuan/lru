@@ -3,7 +3,11 @@ import sys
 from datetime import datetime
 from threading import RLock
 
+from .CacheStorage import CachedItem, NoItemCached
 from .MemoryStorage import MemoryStorage
+
+
+class ItemExpired(KeyError): pass
 
 
 class LRUCache:
@@ -18,8 +22,6 @@ class LRUCache:
 
     Actual storage of the data depends on the storage object
     attached, and defaults to in-memory (MemoryStorage)
-
-    Note: It's up to the storage class to enforce item expiring.
     '''
 
     def __init__(self, storage=None, max_size=None, sizeof=None, max_age=None):
@@ -36,11 +38,6 @@ class LRUCache:
         self.lock = RLock()
 
 
-    def __setitem__(self, key, data):
-        '''Add item to the cache'''
-        self.put(key, data)
-
-
     def put(self, key, data, expires_in=None, size=None):
         '''
         Add an object to the cache
@@ -52,13 +49,16 @@ class LRUCache:
         :return:
         '''
 
+        # Remove item if it already exists
+        try:
+            self.remove(key)
+        except NoItemCached:
+            pass
+
         # Determine size of data
         if size is None:
             if self.__sizeof is not None:
-                try:
-                    size = self.__sizeof(data)
-                except AttributeError:
-                    size = 0
+                size = self.__sizeof(data)
             else:
                 size = sys.getsizeof(data)
 
@@ -70,6 +70,8 @@ class LRUCache:
         else:
             expire_after = None
 
+        item = CachedItem(data, size=size, expires=expire_after)
+
         # Manipulate storage
         with self.lock:
 
@@ -78,31 +80,31 @@ class LRUCache:
                 return
 
             # Make sure there is space
-            self.storage.make_room_for(size, self.max_size)
+            if self.max_size is not None:
+                self.make_room_for(size)
 
             # Save item
-            self.storage.add(
-                key = key,
-                data = data,
-                size = size,
-                expire_after = expire_after)
+            self.storage.add(key, item)
 
 
     def __getitem__(self, key):
         '''Get data from cache'''
         with self.lock:
-            data = self.storage.get(key)
+            item = self.storage.get(key)
+            if item.expires_at is not None and item.expires_at < datetime.now():
+                self.remove(key)
+                raise ItemExpired()
             self.storage.touch_last_used(key)
-            return data
+            return item.data
+
+
+    def __setitem__(self, key, data):
+        '''Add item to the cache'''
+        self.put(key, data)
 
 
     def get(self, key):
         return self[key]
-
-
-    def __contains__(self, key):
-        with self.lock:
-            return self.storage.has(key)
 
 
     def __delitem__(self, key):
@@ -118,7 +120,43 @@ class LRUCache:
         self.storage = None
 
 
-    def clean(self):
+    def clean_expired(self):
         '''Clean old entries out of cache'''
-        self.storage.remove_expired()
+        for key, item in self.storage.expired_items():
+            self.remove(key)
+
+
+    @property
+    def total_size_stored(self):
+        return self.storage.total_size_stored
+
+
+    def make_room_for(self, size):
+        '''
+        Make room for a new item of the given size
+
+        Note: Possible race condition if storage supports multiple LRUCache objects
+              in separate processes and called concurrently.  Solve this in storage
+              engine implementation if needed.
+
+        :param size: Size of the new object coming in
+        :param max_size: Size limit for the cache storage
+        '''
+        with self.lock:
+            if self.max_size > 0 and size > 0:
+                while self.storage.total_size_stored + size > self.max_size:
+                    key, item = self.storage.pop_oldest()
+
+
+    # def remove_expired(self):
+    #     '''Remove any expired keys'''
+    #     now = datetime.now()
+    #     try:
+    #         while self.__expire_queue[0][0] <= now:
+    #             key = heapq.heappop()[1]
+    #             if key in self:
+    #                 self.remove(key)
+    #     except IndexError:
+    #         # Queue probably empty
+    #         return
 
