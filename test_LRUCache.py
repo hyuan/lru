@@ -244,20 +244,20 @@ class TestLRUCache(TestCase):
 
     def test_put_and_get_large_cnt(self):
         '''Test that we can put and then get a value'''
-        run_limit = timedelta(seconds=10)
+        run_limit = timedelta(seconds=6)
         for scenario, cache in self._build_lru_configurations():
             with self.subTest(scenario=scenario):
 
                 started = datetime.now()
 
-                for i in range (100 * 1000):
+                for i in range (10000):
                     cache[str(i)] = {'d': i}
                     if datetime.now() - started > run_limit:
                         print("Only added %d items in %d secs for %s" % (
                             i+1, run_limit.total_seconds(), scenario))
                         break
 
-                self.assertEqual(cache[str(2)], {'d': 2})
+                self.assertEqual(cache[str(i-1)], {'d': i-1})
 
 
 if __name__ == '__main__':
