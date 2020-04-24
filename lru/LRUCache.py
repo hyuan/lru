@@ -7,7 +7,7 @@ from .CacheStorage import CachedItem, ItemNotCached
 from .MemoryStorage import MemoryStorage
 
 
-class ItemExpired(KeyError): pass
+class ItemExpired(ItemNotCached): pass
 
 
 class LRUCache:

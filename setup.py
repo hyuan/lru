@@ -4,8 +4,8 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="lru",
-    version="0.0.1",
+    name="python-lru",
+    version="0.2.0",
     author="Nathan Shearer",
     author_email="shearern@gmail.com",
     description="LRU Cache Implementation",
