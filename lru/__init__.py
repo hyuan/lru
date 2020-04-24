@@ -1,5 +1,5 @@
 from .LRUCache import LRUCache, ItemExpired
-from .CacheStorage import NoItemCached
+from .CacheStorage import ItemNotCached
 
 from .MemoryStorage import MemoryStorage
 from .ShelvedStorage import ShelvedStorage

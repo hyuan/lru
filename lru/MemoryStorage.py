@@ -1,7 +1,7 @@
 from datetime import datetime
 import heapq
 
-from .CacheStorage import CacheStorage, DuplicateKeyOnAdd, NoItemCached
+from .CacheStorage import CacheStorage, DuplicateKeyOnAdd, ItemNotCached
 from .LRULinkedList import LRULinkedList
 
 
@@ -63,12 +63,12 @@ class MemoryStorage(CacheStorage):
 
         :param key: Key identifying
         :return: Data that was cached
-        :raises NoItemCached: If item is not cached
+        :raises ItemNotCached: If item is not cached
         '''
         try:
             return self.__items[key]
         except KeyError:
-            raise NoItemCached()
+            raise ItemNotCached()
 
         
     def remove(self, key):
@@ -79,7 +79,7 @@ class MemoryStorage(CacheStorage):
             self.__total_size -= item.size
             return item
         except KeyError:
-            raise NoItemCached()
+            raise ItemNotCached()
 
             
     def touch_last_used(self, key):

@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod
 from datetime import datetime
 
-class NoItemCached(KeyError): pass
+class ItemNotCached(KeyError): pass
 class DuplicateKeyOnAdd(KeyError): pass
+class NoItemsCached(Exception): pass
 
 
 class CachedItem:
@@ -58,7 +60,7 @@ class CacheStorage(ABC):
         '''All cache keys and items'''
         for key in self.keys():
             try:
-                yield key, self[key]
+                yield key, self.get(key)
             except KeyError:
                 pass # Item was removed before we could grab it
 
@@ -86,8 +88,12 @@ class CacheStorage(ABC):
 
         :param key: Key identifying
         :return: CachedItem
-        :raises NoItemCached: If item not in cache
+        :raises ItemNotCached: If item not in cache
         '''
+
+
+    def __getitem__(self, key):
+        return self.get(key)
 
 
     @abstractmethod
@@ -95,7 +101,7 @@ class CacheStorage(ABC):
         '''
         Remove a cached item from by it's key
 
-        :raises NoItemCached: If item not in cache
+        :raises ItemNotCached: If item not in cache
         '''
 
 
@@ -128,3 +134,7 @@ class CacheStorage(ABC):
             if item.expires_at is not None and item.expires_at < now:
                 yield key, item
 
+
+    @abstractmethod
+    def touch_last_used(self, key):
+        '''Mark item as just used'''

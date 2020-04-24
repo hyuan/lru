@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 from threading import RLock
 
-from .CacheStorage import CachedItem, NoItemCached
+from .CacheStorage import CachedItem, ItemNotCached
 from .MemoryStorage import MemoryStorage
 
 
@@ -52,7 +52,7 @@ class LRUCache:
         # Remove item if it already exists
         try:
             self.remove(key)
-        except NoItemCached:
+        except ItemNotCached:
             pass
 
         # Determine size of data
@@ -159,7 +159,7 @@ class LRUCache:
         with self.lock:
             if self.max_size > 0 and size > 0:
                 while self.storage.total_size_stored + size > self.max_size:
-                    key, item = self.storage.pop_oldest()
+                    self.storage.pop_oldest()
 
 
     # def remove_expired(self):

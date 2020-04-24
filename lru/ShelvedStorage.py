@@ -3,11 +3,11 @@ import shelve
 import heapq
 from datetime import datetime
 
-from .CacheStorage import CachedItem, NoItemCached
+from .CacheStorage import CachedItem, ItemNotCached
 from .MemoryStorage import MemoryStorage
 
 
-class ShelfCorrupted(NoItemCached): pass
+class ShelfCorrupted(ItemNotCached): pass
 
 
 def to_ts(t):
