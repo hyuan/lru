@@ -122,6 +122,11 @@ class LRULinkedList:
             entry = next
 
 
+    def keys(self):
+        for entry in self._entries():
+            yield entry.key
+
+
     def items(self):
         for entry in self._entries():
             yield entry.key, entry.item
@@ -129,5 +134,9 @@ class LRULinkedList:
 
     def __getitem__(self, key):
         return self.__keys[key].item
+
+
+    def __len__(self):
+        return len(self.__keys)
 
 

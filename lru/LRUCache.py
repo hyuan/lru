@@ -103,6 +103,15 @@ class LRUCache:
         self.put(key, data)
 
 
+    def keys(self):
+        return self.storage.keys()
+
+
+    def items(self):
+        for key, item in self.storage.items():
+            yield key, item.data
+
+
     def get(self, key):
         return self[key]
 
@@ -113,6 +122,11 @@ class LRUCache:
 
     def remove(self, key):
         del self[key]
+
+
+    @property
+    def num_items(self):
+        return self.storage.num_items
 
 
     def close(self):

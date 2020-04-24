@@ -36,7 +36,7 @@ class CacheStorage(ABC):
 
     @property
     @abstractmethod
-    def count_items(self):
+    def num_items(self):
         '''Total size of cached data'''
 
 
@@ -97,7 +97,6 @@ class CacheStorage(ABC):
 
         :return: (key, item)
         '''
-        return self.__items.pop_oldest()
 
 
     @abstractmethod

@@ -20,8 +20,8 @@ class MemoryStorage(CacheStorage):
 
 
     @property
-    def count_items(self):
-        return self.__items.keys()
+    def num_items(self):
+        return len(self.__items)
 
 
     def keys(self):

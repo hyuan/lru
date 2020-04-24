@@ -47,6 +47,9 @@ class TestLRUCache(TestCase):
             rmtree(UNITTEST_TMP_DIR)
 
 
+
+
+
     def test_put_and_get(self):
         '''Test that we can put and then get a value'''
 
@@ -76,6 +79,50 @@ class TestLRUCache(TestCase):
                 cache['abc'] = {'my_data': 'a'}
                 cache['xyz'] = {'my_data': 'a'}
                 self.assertEqual(cache.total_size_stored, 2)
+
+
+    def test_num_items(self):
+        for scenario, cache in self._build_lru_configurations():
+            with self.subTest(scenario=scenario):
+                cache['abc'] = {'my_data': 'a'}
+                cache['xyz'] = {'my_data': 'a'}
+                self.assertEqual(cache.num_items, 2)
+
+
+    def test_list_keys(self):
+        for scenario, cache in self._build_lru_configurations():
+            with self.subTest(scenario=scenario):
+                cache['abc'] = {'my_data': 'a'}
+                cache['xyz'] = {'my_data': 'b'}
+                self.assertEqual(set(cache.keys()), set(['abc', 'xyz']))
+
+
+    def test_list_items(self):
+        for scenario, cache in self._build_lru_configurations():
+            with self.subTest(scenario=scenario):
+                cache['abc'] = {'my_data': 'a'}
+                cache['xyz'] = {'my_data': 'b'}
+
+                rtn = dict()
+                for key, data in cache.items():
+                    rtn[key] = data
+
+                self.assertEqual(rtn, {
+                    'abc': {'my_data': 'a'},
+                    'xyz': {'my_data': 'b'},
+                })
+
+
+    def test_item_replaced(self):
+        for storage_name, storage in self._build_storages():
+            cache = LRUCache(storage=storage, sizeof=lambda d: 1)
+            with self.subTest(scenario=storage_name):
+                cache['abc'] = {'my_data': 'a'}
+                cache['abc'] = {'my_data': 'b'}
+
+                self.assertEqual(cache['abc'], {'my_data': 'b'})
+                self.assertEqual(cache.total_size_stored, 1)
+                self.assertEqual(cache.num_items, 1)
 
 
     def test_lru_evict(self):
