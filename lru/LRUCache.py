@@ -7,7 +7,7 @@ from .CacheStorage import CachedItem, ItemNotCached
 from .MemoryStorage import MemoryStorage
 
 
-class ItemExpired(KeyError): pass
+class ItemExpired(ItemNotCached): pass
 
 
 class LRUCache:
@@ -87,6 +87,10 @@ class LRUCache:
             self.storage.add(key, item)
 
 
+    def get(self, key):
+        return self[key]
+
+
     def __getitem__(self, key):
         '''Get data from cache'''
         with self.lock:
@@ -104,20 +108,19 @@ class LRUCache:
 
 
     def keys(self):
-        return self.storage.keys()
+        with self.lock:
+            return self.storage.keys()
 
 
     def items(self):
-        for key, item in self.storage.items():
-            yield key, item.data
-
-
-    def get(self, key):
-        return self[key]
+        with self.lock:
+            for key, item in self.storage.items():
+                yield key, item.data
 
 
     def __delitem__(self, key):
-        self.storage.remove(key)
+        with self.lock:
+            self.storage.remove(key)
 
 
     def remove(self, key):
@@ -130,14 +133,16 @@ class LRUCache:
 
 
     def close(self):
-        self.storage.close()
-        self.storage = None
+        with self.lock:
+            self.storage.close()
+            self.storage = None
 
 
     def clean_expired(self):
         '''Clean old entries out of cache'''
-        for key, item in self.storage.expired_items():
-            self.remove(key)
+        with self.lock:
+            for key, item in self.storage.expired_items():
+                self.remove(key)
 
 
     @property
@@ -161,16 +166,4 @@ class LRUCache:
                 while self.storage.total_size_stored + size > self.max_size:
                     self.storage.pop_oldest()
 
-
-    # def remove_expired(self):
-    #     '''Remove any expired keys'''
-    #     now = datetime.now()
-    #     try:
-    #         while self.__expire_queue[0][0] <= now:
-    #             key = heapq.heappop()[1]
-    #             if key in self:
-    #                 self.remove(key)
-    #     except IndexError:
-    #         # Queue probably empty
-    #         return
 
