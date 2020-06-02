@@ -57,4 +57,55 @@ There are a few storage classes provided.  All are inherited from CacheStorage
  - MemoryStorage: Caches data in memory
  - ShelvedStorage: Caches data in [shelve](https://docs.python.org/3/library/shelve.html).  Really only useful if you're caching large objects.
  - Sqlite3Storage: Slowest storage engine, but possibly accessible from multiple processes?
+
+
+FileCache Class
+---------------
+
+A LRU cache built to store files on top of LRUCache.  Stores files in a defined
+directory along with a sqlite3 DB (Sqlite3Storage) to track file usage and
+metadata, evicting files to make space when needed.
+
+### Basic Usage:
+
+
+    from lru import FileCache
+    
+    cache = FileCache('path/to/cache', max_size=10*1024*1024, max_age=timedelta(days=1))
+    
+    with cache.get('my_file.dat') as file:
+        
+        # While within with context, cache knows not to delete file
+        
+        if not file.in_cache:
+            
+            # Have to get the file from somewhere else.
+            
+            # Then copy in:
+            if have_file_source_on_disk:
+                file.copy_from(path_on_disk)
+                
+            # or open file for writing
+            else:
+                with file.open('wt') as fh:
+                    fh.write("File Contents")
+        
+        else:
+            # Get path to file in cache to read from
+            do_something_with(file.path)
+            
+            # Or make a copy out
+            file.copy_to('another/path')
+            
+            # Can read and write file.metadata as dict
+            if 'project' in file.metadata:
+                print("File is part of project " + file.metadata['project'])
+            else:
+                file.metadata['project'] = input("What project is this: ")
+            
+            # Want to delete from cache?
+            file.discard() # Will delete when exiting with context
+                
+            
+            
  
