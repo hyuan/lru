@@ -119,28 +119,66 @@ class TestFileCache(TestCase):
         cache.close()
 
 
-    # def test_num_files(self):
-    #     cache = self._make_cache()
-    #
-    #     with cache.get('file_a.dat') as file:
-    #         with file.open('wt') as fh:
-    #             fh.write("Test content")
-    #
-    #     with cache.get('file_b.dat') as file:
-    #         with file.open('wt') as fh:
-    #             fh.write("Test content")
-    #
-    #     self.assertEqual(cache.num_files, 2)
-    #
-    #
-    # def test_list_keys(self):
-    #     for scenario, cache in self._build_lru_configurations():
-    #         with self.subTest(scenario=scenario):
-    #             cache['abc'] = {'my_data': 'a'}
-    #             cache['xyz'] = {'my_data': 'b'}
-    #             self.assertEqual(set(cache.keys()), set(['abc', 'xyz']))
-    #
-    #
+    def test_discard(self):
+
+        cache = self._make_cache()
+
+        with cache.get('file_a.dat') as file:
+            with file.open('wt') as fh:
+                fh.write("Test content")
+            file.metadata['test'] = 'test_value'
+
+        with cache.get('file_a.dat') as file:
+            self.assertFalse(file.discarded)
+            file.discard()
+            self.assertTrue(file.discarded)
+
+        with cache.get('file_a.dat') as file:
+            self.assertFalse(file.in_cache)
+            self.assertFalse(os.path.exists(file.path))
+
+        cache.close()
+
+
+    def test_immediate_discard(self):
+
+        cache = self._make_cache()
+
+        with cache.get('file_a.dat') as file:
+            with file.open('wt') as fh:
+                fh.write("Test content")
+            file.metadata['test'] = 'test_value'
+            file.discard()
+
+        with cache.get('file_a.dat') as file:
+            self.assertFalse(file.in_cache)
+            self.assertFalse(os.path.exists(file.path))
+
+        cache.close()
+
+
+    def test_num_files(self):
+        cache = self._make_cache()
+
+        with cache.get('file_a.dat') as file:
+            with file.open('wt') as fh:
+                fh.write("Test content")
+
+        with cache.get('file_b.dat') as file:
+            with file.open('wt') as fh:
+                fh.write("Test content")
+
+        self.assertEqual(cache.num_files, 2)
+
+
+    def test_list_names(self):
+        for scenario, cache in self._build_lru_configurations():
+            with self.subTest(scenario=scenario):
+                cache['abc'] = {'my_data': 'a'}
+                cache['xyz'] = {'my_data': 'b'}
+                self.assertEqual(set(cache.keys()), set(['abc', 'xyz']))
+
+
     # def test_list_items(self):
     #     for scenario, cache in self._build_lru_configurations():
     #         with self.subTest(scenario=scenario):
@@ -167,31 +205,31 @@ class TestFileCache(TestCase):
     #             self.assertEqual(cache['abc'], {'my_data': 'b'})
     #             self.assertEqual(cache.total_size_stored, 1)
     #             self.assertEqual(cache.num_items, 1)
-    #
-    #
-    # def test_lru_evict(self):
-    #     for storage_name, storage in self._build_storages():
-    #         cache = LRUCache(storage=storage, max_size=2, max_age=None, sizeof=lambda i: 1)
-    #         with self.subTest(scenario=storage_name):
-    #             cache['abc'] = {'my_data': 'a'}
-    #             cache['def'] = {'my_data': 'b'}
-    #             cache['ghi'] = {'my_data': 'c'}
-    #             with self.assertRaises(ItemNotCached):
-    #                 cache['abc']
-    #             self.assertEqual(cache.total_size_stored, 2)
-    #
-    #
-    # def test_item_expired(self):
-    #     for storage_name, storage in self._build_storages():
-    #         cache = LRUCache(storage=storage, max_age=timedelta(seconds=1))
-    #         with self.subTest(scenario=storage_name):
-    #             cache['abc'] = {'my_data': 'a'}
-    #             sleep(1.1)
-    #             with self.assertRaises(ItemExpired):
-    #                 cache['abc']
-    #             self.assertEqual(cache.total_size_stored, 0)
-    #
-    #
+
+
+    def test_lru_evict(self):
+        for storage_name, storage in self._build_storages():
+            cache = LRUCache(storage=storage, max_size=2, max_age=None, sizeof=lambda i: 1)
+            with self.subTest(scenario=storage_name):
+                cache['abc'] = {'my_data': 'a'}
+                cache['def'] = {'my_data': 'b'}
+                cache['ghi'] = {'my_data': 'c'}
+                with self.assertRaises(ItemNotCached):
+                    cache['abc']
+                self.assertEqual(cache.total_size_stored, 2)
+
+
+    def test_item_expired(self):
+        for storage_name, storage in self._build_storages():
+            cache = LRUCache(storage=storage, max_age=timedelta(seconds=1))
+            with self.subTest(scenario=storage_name):
+                cache['abc'] = {'my_data': 'a'}
+                sleep(1.1)
+                with self.assertRaises(ItemExpired):
+                    cache['abc']
+                self.assertEqual(cache.total_size_stored, 0)
+
+
     # def test_set_item_expired(self):
     #     for storage_name, storage in self._build_storages():
     #         cache = LRUCache(storage=storage)
@@ -206,22 +244,22 @@ class TestFileCache(TestCase):
     #             with self.assertRaises(ItemExpired):
     #                 cache['abc']
     #             self.assertEqual(cache.total_size_stored, 0)
-    #
-    #
-    # def test_clean_expired(self):
-    #     for storage_name, storage in self._build_storages():
-    #         cache = LRUCache(storage=storage, sizeof=lambda i: 1)
-    #         with self.subTest(scenario=storage_name):
-    #             cache.put(key='abc', data={'my_data': 'a'}, expires_in=timedelta(seconds=1))
-    #             cache.put(key='def', data={'my_data': 'a'}, expires_in=timedelta(seconds=1))
-    #             cache.put(key='ghi', data={'my_data': 'a'}, expires_in=timedelta(days=1))
-    #             cache.put(key='jkl', data={'my_data': 'a'})
-    #             self.assertEqual(cache.total_size_stored, 4)
-    #             sleep(1.1)
-    #             cache.clean_expired()
-    #             self.assertEqual(cache.total_size_stored, 2)
-    #
-    #
+
+
+    def test_clean_expired(self):
+        for storage_name, storage in self._build_storages():
+            cache = LRUCache(storage=storage, sizeof=lambda i: 1)
+            with self.subTest(scenario=storage_name):
+                cache.put(key='abc', data={'my_data': 'a'}, expires_in=timedelta(seconds=1))
+                cache.put(key='def', data={'my_data': 'a'}, expires_in=timedelta(seconds=1))
+                cache.put(key='ghi', data={'my_data': 'a'}, expires_in=timedelta(days=1))
+                cache.put(key='jkl', data={'my_data': 'a'})
+                self.assertEqual(cache.total_size_stored, 4)
+                sleep(1.1)
+                cache.clean_expired()
+                self.assertEqual(cache.total_size_stored, 2)
+
+
     # def test_item_too_big(self):
     #     for storage_name, storage in self._build_storages():
     #         cache = LRUCache(storage=storage, max_size=2, max_age=None, sizeof=lambda i: 10)

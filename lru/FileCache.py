@@ -172,11 +172,13 @@ class FileMetaDataCache(LRUCache):
         self.__in_use_names.remove(name)
 
 
-    def remove(self, name):
-        if not self.is_in_use(name):
-            super().remove(name)
-            path = os.path.join(self.__file_store_path, name)
-            os.remove(path)
+    def __delitem__(self, key):
+        if not self.is_in_use(key):
+            super().__delitem__(key)
+            path = os.path.join(self.__file_store_path, key)
+            if os.path.exists(path):
+                os.remove(path)
+
 
 
 class FileCache:
@@ -275,20 +277,28 @@ class FileCache:
 
         # Check if file has been marked for discard
         if handle.discarded:
-            del self.__cache[handle.name]
+            self.__cache.mark_not_in_use(handle.name)
+            try:
+                del self.__cache[handle.name]
+            except ItemNotCached:
+                pass
+            if os.path.exists(handle.path):
+                os.unlink(handle.path)
+                # TODO: Remove empty directories
 
         # Check to see if file is present and has changed
-        elif os.path.exists(handle.path):
-            size = os.path.getsize(handle.path)
-            mtime = os.path.getmtime(handle.path)
-            if not open_state['exists'] or open_state['size'] != size or open_state['mtime'] != mtime:
-                self.__cache.put(
-                    key = handle.name,
-                    data = handle.metadata,
-                    size = sys.getsizeof(handle.metadata) + size
-                )
+        else:
+            if os.path.exists(handle.path):
+                size = os.path.getsize(handle.path)
+                mtime = os.path.getmtime(handle.path)
+                if not open_state['exists'] or open_state['size'] != size or open_state['mtime'] != mtime:
+                    self.__cache.put(
+                        key = handle.name,
+                        data = handle.metadata,
+                        size = sys.getsizeof(handle.metadata) + size
+                    )
+            self.__cache.mark_not_in_use(handle.name)
 
-        self.__cache.mark_not_in_use(handle.name)
 
 
     def close(self):
