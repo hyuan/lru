@@ -140,3 +140,5 @@ class LRULinkedList:
         return len(self.__keys)
 
 
+    def __contains__(self, key):
+        return key in self.__keys
