@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="python-lru",
-    version="0.2.1",
+    version="0.3.0",
     author="Nathan Shearer",
     author_email="shearern@gmail.com",
     description="LRU Cache Implementation",
