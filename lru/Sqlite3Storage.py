@@ -116,6 +116,13 @@ class Sqlite3Storage(CacheStorage):
         :param size: Size of the data item
         :param expire_after: When to expire this data (datetime)
         '''
+
+        # Remove existing item
+        try:
+            self.remove(key)
+        except ItemNotCached:
+            pass
+
         with closing(self.__db.cursor()) as curs:
 
             # Encode data
@@ -188,6 +195,33 @@ class Sqlite3Storage(CacheStorage):
                 )
 
         raise ItemNotCached()
+
+
+    def has_key(self, key):
+        '''
+        Check to see if key exists.
+
+        This is only called by the LRUCache class after locking storage.  It's
+        not intended to be used outside of lru as typcially you want to just try
+        and get your key and let if fail if not present.
+
+        Doesn't check expired.  Just checks to see if key is in storage
+
+        :param key: Key being queried
+        :return: True if key is stored in storage
+        '''
+
+        with closing(self.__db.cursor()) as curs:
+
+            # Look for key
+            sql = dedent("""\
+                SELECT
+                    count(*) as CNT
+                FROM cache_entries
+                WHERE cache_key = ?
+                """)
+            for row in curs.execute(sql, (key, )):
+                return row[0] != 0
 
 
     def expired_items(self):

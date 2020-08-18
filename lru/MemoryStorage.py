@@ -71,6 +71,22 @@ class MemoryStorage(CacheStorage):
             raise ItemNotCached()
 
         
+    def has_key(self, key):
+        '''
+        Check to see if key exists.
+
+        This is only called by the LRUCache class after locking storage.  It's
+        not intended to be used outside of lru as typcially you want to just try
+        and get your key and let if fail if not present.
+
+        Doesn't check expired.  Just checks to see if key is in storage
+
+        :param key: Key being queried
+        :return: True if key is stored in storage
+        '''
+        return key in self.__items
+
+
     def remove(self, key):
         '''Remove a cached item by it's key'''
         try:
