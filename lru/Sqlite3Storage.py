@@ -116,6 +116,13 @@ class Sqlite3Storage(CacheStorage):
         :param size: Size of the data item
         :param expire_after: When to expire this data (datetime)
         '''
+
+        # Remove existing item
+        try:
+            self.remove(key)
+        except ItemNotCached:
+            pass
+
         with closing(self.__db.cursor()) as curs:
 
             # Encode data

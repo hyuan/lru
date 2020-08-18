@@ -1,9 +1,13 @@
 import os
+import sys
 from datetime import timedelta, datetime
 from tempfile import mktemp
+import unittest
 from unittest import TestCase
 from shutil import rmtree
 from time import sleep
+from random import choice
+from string import ascii_lowercase
 
 from lru import MemoryStorage, ShelvedStorage, Sqlite3Storage
 from lru import LRUCache
@@ -57,7 +61,6 @@ class TestLRUCache(TestCase):
             rmtree(UNITTEST_TMP_DIR)
 
 
-
     def test_put_and_get(self):
         '''Test that we can put and then get a value'''
 
@@ -70,6 +73,27 @@ class TestLRUCache(TestCase):
                 self.assertEqual(cache['def'], {'my_data': 'b'})
                 self.assertEqual(cache['xyz'], {'my_data': 'c'})
                 self.assertEqual(cache.get('xyz'), {'my_data': 'c'})
+
+
+    def test_overwrite_key(self):
+        for scenario, cache in self._build_lru_configurations():
+            with self.subTest(scenario=scenario):
+                cache['abc'] = {'my_data': 'a'}
+                cache['abc'] = {'my_data': 'b'}
+                self.assertEqual(cache['abc'], {'my_data': 'b'})
+
+
+
+    def test_overwrite_key_size(self):
+        def _rand_val(numchars):
+            return ''.join([choice(ascii_lowercase) for i in range(numchars)])
+        for scenario, cache in self._build_lru_configurations():
+            with self.subTest(scenario=scenario):
+                cache['abc'] = _rand_val(20)
+                first_size = cache.total_size_stored
+                cache['abc'] = _rand_val(10)
+                self.assertLess(cache.total_size_stored, first_size)
+
 
 
     def test_cache_miss(self):

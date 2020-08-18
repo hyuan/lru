@@ -49,18 +49,12 @@ class LRUCache:
         :return:
         '''
 
-        # Remove item if it already exists
-        try:
-            self.remove(key)
-        except ItemNotCached:
-            pass
-
         # Determine size of data
         if size is None:
             if self.__sizeof is not None:
                 size = self.__sizeof(data)
             else:
-                size = sys.getsizeof(data)
+                size = sys.getsizeof(key) + sys.getsizeof(data)
 
         # Time to expire
         if expires_in is not None:
@@ -74,6 +68,10 @@ class LRUCache:
 
         # Manipulate storage
         with self.lock:
+
+            # Remove item if already exists
+            if self.storage.has_key(key):
+                self._remove_item_from_storage(key)
 
             # Sanity check: Data too big for storage
             if self.max_size is not None and size > self.max_size:
@@ -118,13 +116,22 @@ class LRUCache:
                 yield key, item.data
 
 
-    def __delitem__(self, key):
+    def _remove_item_from_storage(self, key):
+        '''
+        Remove an item from storage
+
+        Intended for internal use.  No state checking
+        '''
         with self.lock:
             self.storage.remove(key)
 
 
+    def __delitem__(self, key):
+        self._remove_item_from_storage(key)
+
+
     def remove(self, key):
-        del self[key]
+        self._remove_item_from_storage(key)
 
 
     @property
