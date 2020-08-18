@@ -156,29 +156,57 @@ class FileMetaDataCache(LRUCache):
         self.__file_store_path = file_store_path
 
 
+    def put(self, key, data, expires_in=None, size=None):
+
+        # Proceed with adding
+        super().put(key, data, expires_in, size)
+
+
     def is_in_use(self, name):
+        '''
+        Check to see if file is already checked out
+
+        :param name: Name to identify file
+        :return: boolean
+        '''
         return name in self.__in_use_names
 
 
     def mark_in_use(self, name):
+        '''
+        Mark that a file has been checked out
+
+        :param name: Name to identify file
+        '''
         if name in self.__in_use_names:
             raise ValueError("Already in locks")
         self.__in_use_names.add(name)
 
 
     def mark_not_in_use(self, name):
+        '''
+        Mark that a file is no longer in use (check in)
+
+        :param name: Name to identify file
+        '''
         if name not in self.__in_use_names:
             raise ValueError("Name not in locks")
         self.__in_use_names.remove(name)
 
 
     def __delitem__(self, key):
+        '''Delete an item out of the '''
         if not self.is_in_use(key):
             super().__delitem__(key)
-            path = os.path.join(self.__file_store_path, key)
-            if os.path.exists(path):
-                os.remove(path)
+        else:
+            raise CachedFileInUse("Can't delete in-use file %s" % (key))
 
+
+    def _remove_item_from_storage(self, key):
+        path = os.path.join(self.__file_store_path, key)
+        if os.path.exists(path):
+            os.remove(path)
+        return super()._remove_item_from_storage(key)
 
 
 class FileCache:
@@ -217,6 +245,12 @@ class FileCache:
     def path(self):
         '''Path to directory where cached files are stored'''
         return self.__path
+
+
+    @property
+    def metadata(self):
+        '''Provide direct access to metadata cache'''
+        return self.__cache
 
 
     @property
