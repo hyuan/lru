@@ -1,8 +1,9 @@
 from datetime import datetime
 import heapq
 
-from .CacheStorage import CacheStorage, DuplicateKeyOnAdd, ItemNotCached
+from .CacheStorage import CacheStorage
 from .LRULinkedList import LRULinkedList
+from .exceptions import DuplicateKeyOnAdd, ItemNotCached
 
 
 class MemoryStorage(CacheStorage):
@@ -37,7 +38,7 @@ class MemoryStorage(CacheStorage):
         '''
         Add an item to the storage
 
-        Note: It's up to the storage engine to make room for the item if full
+        Note: LRUCache will make room before adding.  Storage needs to track how much space used
 
         :param key: Key to retrieve data with
         :param item: CachedItem

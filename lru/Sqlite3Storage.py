@@ -8,7 +8,7 @@ import sqlite3
 import logging
 
 from .CacheStorage import CacheStorage, CachedItem
-from .CacheStorage import ItemNotCached, NoItemsCached
+from .exceptions import ItemNotCached, NoItemsCached
 from .utils import LargeKeyList
 
 class CachedDataCorrupt(ItemNotCached): pass
@@ -108,7 +108,9 @@ class Sqlite3Storage(CacheStorage):
 
     def add(self, key, item):
         '''
-        Add an item to the storage and update LRU tracking
+        Add an item to the storage
+
+        Note: LRUCache will make room before adding.  Storage needs to track how much space used
 
         :param key: Key to retrieve data with
         :param data: Data to be stored

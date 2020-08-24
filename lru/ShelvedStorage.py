@@ -3,8 +3,9 @@ import shelve
 import heapq
 from datetime import datetime
 
-from .CacheStorage import CachedItem, ItemNotCached
+from .CacheStorage import CachedItem
 from .MemoryStorage import MemoryStorage
+from .exceptions import ItemNotCached
 
 
 class ShelfCorrupted(ItemNotCached): pass
@@ -72,6 +73,17 @@ class ShelvedStorage(MemoryStorage):
 
 
     def add(self, key, item):
+        '''
+        Add an item to the storage
+
+        Note: LRUCache will make room before adding.  Storage needs to track how much space used
+
+        :param key: Key to retrieve data with
+        :param item: CachedItem
+        :raises DuplicateKeyOnAdd:
+            LRUCache works to make sure items are unique when queued.  However,
+            if a conflict is encountered
+        '''
 
         lru_order = datetime.now().timestamp()
 

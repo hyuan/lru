@@ -3,12 +3,9 @@ import sys
 from datetime import datetime
 from threading import RLock
 
-from .CacheStorage import CachedItem, ItemNotCached
+from .CacheStorage import CachedItem
 from .MemoryStorage import MemoryStorage
-
-
-class ItemExpired(ItemNotCached): pass
-
+from .exceptions import ItemExpired
 
 class LRUCache:
     '''

@@ -2,11 +2,6 @@ from abc import ABC, abstractmethod
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-class ItemNotCached(KeyError): pass
-class DuplicateKeyOnAdd(KeyError): pass
-class NoItemsCached(Exception): pass
-
-
 class CachedItem:
     '''The carier for an item to be cached'''
 
@@ -48,7 +43,7 @@ class CacheStorage(ABC):
     @property
     @abstractmethod
     def num_items(self):
-        '''Total size of cached data'''
+        '''Number of items in cache'''
 
 
     @abstractmethod
@@ -71,7 +66,7 @@ class CacheStorage(ABC):
         '''
         Add an item to the storage
 
-        Note: It's up to the storage engine to make room for the item if full
+        Note: LRUCache will make room before adding.  Storage needs to track how much space used
 
         :param key: Key to retrieve data with
         :param item: CachedItem
@@ -98,7 +93,7 @@ class CacheStorage(ABC):
         Check to see if key exists.
 
         This is only called by the LRUCache class after locking storage.  It's
-        not intended to be used outside of lru as typcially you want to just try
+        not intended to be used outside of lru as typically you want to just try
         and get your key and let if fail if not present.
 
         Doesn't check expired.  Just checks to see if key is in storage
@@ -124,7 +119,7 @@ class CacheStorage(ABC):
     @abstractmethod
     def pop_oldest(self):
         '''
-        Select next key to remove (least recently used)
+        Remove oldest item from the cache (least recently used)
 
         :return: (key, item)
         '''
